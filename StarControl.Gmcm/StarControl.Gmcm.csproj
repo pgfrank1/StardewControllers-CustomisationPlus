@@ -50,8 +50,22 @@
       <ProjectReference Include="..\StarControl\StarControl.csproj" />
     </ItemGroup>
 
-    <Target Name="Deploy" AfterTargets="Build">
-        <Copy SourceFiles="$(OutDir)StarControl.Gmcm.dll" DestinationFolder="$(SolutionDir)StarControl\assets\extensions" ContinueOnError="false" />
+    <!--
+        StarControl loads this extension at runtime from its deployed mod folder's
+        assets/extensions/ directory (see ModEntry: Helper.DirectoryPath/assets/extensions/
+        StarControl.Gmcm.dll). This project doesn't deploy itself (EnableModDeploy=False),
+        so copy the built DLL straight into StarControl's deployed assets/extensions folder.
+        The ProjectReference above ensures StarControl is built and deployed first, so the
+        target folder exists. Only StarControl.Gmcm.dll is needed; its dependencies resolve
+        against assemblies StarControl has already loaded.
+    -->
+    <Target Name="DeployGmcmExtension" AfterTargets="Build" Condition="'$(GameModsPath)' != ''">
+        <PropertyGroup>
+            <StarControlExtensionsDir>$(GameModsPath)\Star Control - CustomisationPlus\assets\extensions</StarControlExtensionsDir>
+        </PropertyGroup>
+        <MakeDir Directories="$(StarControlExtensionsDir)" />
+        <Copy SourceFiles="$(OutDir)StarControl.Gmcm.dll" DestinationFolder="$(StarControlExtensionsDir)" SkipUnchangedFiles="true" />
+        <Message Importance="high" Text="Deployed GMCM extension to $(StarControlExtensionsDir)" />
     </Target>
 
 </Project>
