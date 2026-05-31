@@ -525,6 +525,13 @@ public class ModEntry : Mod
         var controller = ViewEngine.OpenRootMenu("Remapping", context);
         context.Controller = controller;
         controller.PositionSelector = context.GetMenuPosition;
+        // StardewUI's menu sets Game1.displayHUD = false while it's open and never restores
+        // it on close, which permanently hides the HUD (and the latched value then poisons
+        // the radial wheel's own HUD save/restore on the next open). Capture the HUD state
+        // and restore it when the menu closes. Note: the Closing event (cleanupBeforeExit
+        // lifecycle) is the one that fires at actual close time; Closed fires at open.
+        var hudWasVisible = Game1.displayHUD;
+        controller.Closing += () => Game1.displayHUD = hudWasVisible;
         Game1.activeClickableMenu = controller!.Menu;
     }
 
