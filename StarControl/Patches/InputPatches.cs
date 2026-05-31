@@ -191,7 +191,58 @@ internal static class InputPatches
     public static bool DrawMouseCursor_Prefix()
     {
         ClearAwaitIfMouseMoved();
-        return !ForceHideCursor && !rightStickCursorAwaitingMove && !IsRightStickSuppressed();
+        if (!ForceHideCursor && !rightStickCursorAwaitingMove && !IsRightStickSuppressed())
+        {
+            return true;
+        }
+        // We're hiding the cursor (radial menu open, or gamepad play awaiting right-stick
+        // movement). Vanilla does two things inside drawMouseCursor that we'd otherwise lose by
+        // skipping the whole method:
+        //
+        // 1. Its gamepad branch sets mouseCursorTransparency = 0 / wasMouseVisibleThisFrame =
+        //    false. These are what make Game1.IsPerformingMousePlacement() return false, so
+        //    GetPlacementGrabTile() tracks the tile in front of the player instead of the last
+        //    mouse position. Without this, after the mouse has been used the placement target
+        //    (and indicator) stick to the stale, possibly far-off-screen mouse location and the
+        //    actual placement goes there too. Replicate that here so placement is player-relative
+        //    while the cursor is hidden.
+        // 2. It draws the placeable-item placement indicator (the green tile for seeds,
+        //    saplings, furniture, etc.). Reproduce that below so it still shows.
+        Game1.mouseCursorTransparency = 0f;
+        Game1.wasMouseVisibleThisFrame = false;
+        DrawPlacementBoundsIfNeeded();
+        return false;
+    }
+
+    private static void DrawPlacementBoundsIfNeeded()
+    {
+        // Don't show the placement indicator while the radial menu itself is open.
+        if (GamePatches.IsRadialMenuActive?.Invoke() == true)
+        {
+            return;
+        }
+        if (Game1.activeClickableMenu is not null || Game1.currentLocation is null)
+        {
+            return;
+        }
+        var player = Game1.player;
+        if (
+            player?.ActiveObject is null
+            || Game1.eventUp
+            || Game1.currentMinigame is not null
+            || player.isRidingHorse()
+            || !player.CanMove
+            || !Game1.displayFarmer
+        )
+        {
+            return;
+        }
+        // Caller has set mouseCursorTransparency to 0, so this matches vanilla's gamepad gate,
+        // which falls back to the showPlacementTileForGamepad option (defaults to true).
+        if (Game1.options.showPlacementTileForGamepad)
+        {
+            player.ActiveObject.drawPlacementBounds(Game1.spriteBatch, Game1.currentLocation);
+        }
     }
 
     private static void ClearAwaitIfMouseMoved()
