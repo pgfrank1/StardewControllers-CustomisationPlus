@@ -182,16 +182,48 @@ internal static class InputPatches
     public static void ShouldDrawMouseCursor_Postfix(ref bool __result)
     {
         ClearAwaitIfMouseMoved();
-        if (ForceHideCursor || rightStickCursorAwaitingMove || IsRightStickSuppressed())
+        if (ShouldHideCursor())
         {
             __result = false;
+        }
+    }
+
+    /// <summary>
+    /// Whether StarControl is currently hiding the mouse cursor (radial menu open, or gamepad
+    /// play awaiting right-stick movement). Single source of truth so the cursor-hiding and
+    /// the tool-hit-marker correction below can't drift apart.
+    /// </summary>
+    private static bool ShouldHideCursor()
+    {
+        return ForceHideCursor || rightStickCursorAwaitingMove || IsRightStickSuppressed();
+    }
+
+    /// <summary>
+    /// Vanilla bug workaround: the "Always Show Tool Hit Location" marker is drawn in
+    /// Farmer.draw via the GetToolLocation(Vector2) overload using the raw mouse position,
+    /// without the gamepad/mouse-visibility guard that the parameterless overload (and thus the
+    /// actual tool use) applies. While we're hiding the cursor for controller play, that mouse
+    /// position is stale, so the red marker can appear behind/beside the player even though the
+    /// tool correctly acts on the tile in front. Force ignoreClick = true here, which is exactly
+    /// what vanilla's guarded overload does for gamepad input, so the marker resolves to the
+    /// facing-direction tile and matches where the tool actually hits.
+    /// </summary>
+    public static void GetToolLocation_Prefix(ref bool ignoreClick)
+    {
+        if (ShouldHideCursor())
+        {
+            ignoreClick = true;
         }
     }
 
     public static bool DrawMouseCursor_Prefix()
     {
         ClearAwaitIfMouseMoved();
-        if (!ForceHideCursor && !rightStickCursorAwaitingMove && !IsRightStickSuppressed())
+        // Only take over cursor drawing for world gameplay. When a menu is open (mail, shop,
+        // etc.) the menu draws its own cursor and uses Game1.mouseCursorTransparency; if we ran
+        // our hiding logic here it would corrupt that menu cursor (it could render faint or in
+        // the wrong layer). Defer entirely to vanilla while a menu is active.
+        if (Game1.activeClickableMenu is not null || !ShouldHideCursor())
         {
             return true;
         }

@@ -49,6 +49,17 @@ internal static class Patcher
             "drawMouseCursor",
             prefix: new(typeof(InputPatches), nameof(InputPatches.DrawMouseCursor_Prefix))
         );
+        // Correct the "Always Show Tool Hit Location" marker for controller play. Target the
+        // GetToolLocation(Vector2, bool) overload specifically (Character has two overloads);
+        // parameterTypes disambiguates so a future signature change degrades to a skipped patch
+        // rather than an ambiguous-match crash.
+        TryPatch(
+            harmony,
+            typeof(Character),
+            nameof(Character.GetToolLocation),
+            prefix: new(typeof(InputPatches), nameof(InputPatches.GetToolLocation_Prefix)),
+            parameterTypes: new[] { typeof(Vector2), typeof(bool) }
+        );
         TryPatch(
             harmony,
             typeof(InputState),
@@ -82,12 +93,13 @@ internal static class Patcher
         HarmonyMethod? prefix = null,
         HarmonyMethod? postfix = null,
         HarmonyMethod? transpiler = null,
-        HarmonyMethod? finalizer = null
+        HarmonyMethod? finalizer = null,
+        Type[]? parameterTypes = null
     )
     {
         try
         {
-            var method = AccessTools.Method(targetType, targetMethodName);
+            var method = AccessTools.Method(targetType, targetMethodName, parameterTypes);
             if (method is null)
             {
                 Logger.Log(
