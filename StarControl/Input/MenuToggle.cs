@@ -103,7 +103,7 @@ public class MenuToggle(
             {
                 forcedButtonSuppressionTicks++;
             }
-            inputHelper.Suppress(Button);
+            SuppressButton();
         }
 
         if (interactive && RequiresSmapiBypass(Button))
@@ -113,7 +113,7 @@ public class MenuToggle(
                 $"Button {Button} used for menu toggle requires SMAPI bypass due to timing/state "
                     + "discrepancies and will be suppressed before every update tick."
             );
-            inputHelper.Suppress(Button);
+            SuppressButton();
         }
     }
 
@@ -159,16 +159,50 @@ public class MenuToggle(
                 LogCategory.Input,
                 $"Suppressing button {Button} which triggered state change."
             );
-            inputHelper.Suppress(Button);
+            SuppressButton();
         }
         wasReleasedWhileNonInteractive = false;
     }
 
+    /// <summary>
+    /// Suppress <see cref="Button"/> via SMAPI, but skip suppression of controller buttons when no
+    /// controller is connected.
+    /// </summary>
+    /// <remarks>
+    /// Suppressing a controller button makes SMAPI rebuild its gamepad state to remove it
+    /// (SInputState.ApplyOverrides -> GamePadStateBuilder.GetState), and that rebuild constructs a
+    /// <see cref="GamePadState"/> via <c>new GamePadState(...)</c>, which forces
+    /// <see cref="GamePadState.IsConnected"/> to <c>true</c> regardless of whether a controller is
+    /// actually present. With Gamepad Mode = Auto and no controller connected, that fabricated
+    /// "connected" state flickers on the suppression frame and back off the next frame, which
+    /// Game1.CheckGamepadMode reports as spurious "Gamepad connected/disconnected" messages every
+    /// time a (controller-bound) tool button is used. Skipping the suppression when nothing is
+    /// connected avoids the rebuild entirely; there is no real controller input to suppress anyway.
+    /// </remarks>
+    private void SuppressButton()
+    {
+        if (Button.TryGetController(out _) && !Game1.input.GetGamePadState().IsConnected)
+        {
+            return;
+        }
+        inputHelper.Suppress(Button);
+    }
+
     private static GamePadState GetRawGamePadState()
     {
+        // Polling raw XInput (GamePad.GetState) every tick keeps Steam Input's virtual
+        // controller emulation flickering between connected/disconnected, which the game
+        // reports as spurious "controller connected/disconnected" messages. Only poll the raw
+        // state when a controller is actually connected (per the game's already-cached state);
+        // otherwise there's nothing to bypass-read, so fall back to that normal state.
+        var cachedState = Game1.input.GetGamePadState();
+        if (!cachedState.IsConnected)
+        {
+            return cachedState;
+        }
         return Game1.playerOneIndex >= PlayerIndex.One
             ? GamePad.GetState(Game1.playerOneIndex)
-            : new();
+            : cachedState;
     }
 
     private bool IsButtonDown(SButton button)

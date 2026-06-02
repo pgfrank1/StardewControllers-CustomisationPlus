@@ -107,10 +107,13 @@ internal static class InputPatches
         // Note however that we don't want to actually use this raw state as the _result_, since it
         // may lose other nuances, for example other unrelated buttons being suppressed. Only want
         // to pull remapped buttons from the raw state into the real un-remapped state.
+        // Only poll the raw controller state when one is actually connected. When nothing is
+        // connected there is no suppressed input to recover past SMAPI, so use the cached state
+        // as-is rather than constructing a fresh (default) one.
         var rawState =
-            Game1.playerOneIndex >= PlayerIndex.One
+            gamepadState.IsConnected && Game1.playerOneIndex >= PlayerIndex.One
                 ? GamePad.GetState(Game1.playerOneIndex)
-                : new();
+                : gamepadState;
         RemapGamePadState(ref gamepadState, rawState);
         return gamepadState;
     }

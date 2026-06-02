@@ -16,7 +16,14 @@
         <EnableGameDebugging>false</EnableGameDebugging>
         <EnableModDeploy>False</EnableModDeploy>
         <EnableModZip>False</EnableModZip>
-        <BundleExtraAssemblies>All</BundleExtraAssemblies>
+        <!--
+            This project isn't deployed as a standalone mod (EnableModDeploy=False); only its
+            own StarControl.Gmcm.dll is copied into StarControl's assets/extensions folder, and
+            every dependency (the game, SMAPI, StarControl, Harmony, etc.) is already loaded at
+            runtime. Bundling extra assemblies just dragged ~20 unnecessary DLLs (including
+            Stardew Valley.dll, MonoGame, SkiaSharp) into bin on every build. Keep them out.
+        -->
+        <BundleExtraAssemblies>None</BundleExtraAssemblies>
     </PropertyGroup>
 
     <ItemGroup>
