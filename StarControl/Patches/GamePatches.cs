@@ -45,7 +45,10 @@ internal static class GamePatches
         }
     }
 
-    public static void DrawHud_Postfix()
+    // Finalizer (not a postfix) so the Toolbar is always restored even if drawHUD — or another
+    // patch on it — throws. A void finalizer does not swallow the exception; Harmony rethrows it
+    // after this runs, so genuine errors still surface in the log.
+    public static void DrawHud_Finalizer()
     {
         if (removedHudMenus is null || Game1.onScreenMenus is null)
         {

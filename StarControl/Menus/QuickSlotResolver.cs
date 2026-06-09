@@ -13,13 +13,17 @@ internal class QuickSlotResolver(Farmer player, ModMenu modMenu)
         {
             Logger.Log(
                 LogCategory.QuickSlots,
-                $"'{id}' does not have validx item data; aborting search."
+                $"'{id}' does not have valid item data; aborting search."
             );
             return null;
         }
         // Melee weapons don't have upgrades or base items, but if we didn't find an exact match, it
         // is often helpful to find any other melee weapon that's available.
-        // Only apply fuzzy matching to melee weapons; slingshots must match exactly
+        // Only apply fuzzy matching to melee weapons; slingshots must match exactly.
+        // NOTE (surprise vector): when the exact configured weapon isn't in the inventory, the block
+        // below substitutes the best available melee weapon of the same scythe/non-scythe kind. The
+        // ranged-weapon exclusion is a string heuristic on the qualified id ("Slingshot"/"Bow"), so a
+        // modded ranged weapon without those tokens would be treated as melee and fuzzy-matched.
         if (
             data.ItemType.Identifier == "(W)"
             && !data.QualifiedItemId.Contains("Slingshot")

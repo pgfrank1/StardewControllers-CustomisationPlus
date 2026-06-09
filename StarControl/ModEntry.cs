@@ -35,6 +35,11 @@ public class ModEntry : Mod
     private KeybindActivator keybindActivator = null!;
     private PageRegistry pageRegistry = null!;
 
+    // True while the radial menu is the reason Game1.freezeControls is set, so we only clear it on
+    // close if we were the ones who set it (vanilla also toggles freezeControls for its own reasons,
+    // e.g. cutscenes and fades).
+    private bool freezeControlsOwned;
+
     public ModEntry()
     {
         modMenu = new(CreateModMenu);
@@ -192,14 +197,26 @@ public class ModEntry : Mod
         var wasActive = MenuController.IsMenuActive;
         MenuController.Enabled = Context.CanPlayerMove;
         MenuController.Update(Game1.currentGameTime.ElapsedGameTime);
-        if (!wasActive && MenuController.IsMenuActive)
+        if (MenuController.IsMenuActive)
         {
-            Game1.player.completelyStopAnimatingOrDoingAction();
+            if (!wasActive)
+            {
+                Game1.player.completelyStopAnimatingOrDoingAction();
+            }
+            // Re-assert every tick, not just on the open edge. Vanilla independently clears
+            // freezeControls on warps, fades and cutscene setup; without re-claiming it, time and
+            // controls can resume underneath an open wheel for a few frames.
             Game1.freezeControls = true;
+            freezeControlsOwned = true;
         }
-        else if (wasActive && !MenuController.IsMenuActive)
+        else if (wasActive)
         {
-            Game1.freezeControls = false;
+            // Only release the freeze if we were the ones holding it.
+            if (freezeControlsOwned)
+            {
+                Game1.freezeControls = false;
+            }
+            freezeControlsOwned = false;
         }
         if (MenuController.IsMenuActive)
         {
@@ -247,7 +264,7 @@ public class ModEntry : Mod
         // To avoid confusing the game's UI, check for this condition and switch to the backpack
         // page that actually does contain the index.
         if (
-            e.Result is not ItemActivationResult.Selected or ItemActivationResult.ToolUseStarted
+            e.Result is not (ItemActivationResult.Selected or ItemActivationResult.ToolUseStarted)
             || Game1.player.CurrentToolIndex < GameConstants.BACKPACK_PAGE_SIZE
         )
         {

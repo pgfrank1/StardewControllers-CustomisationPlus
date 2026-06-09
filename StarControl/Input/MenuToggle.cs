@@ -135,7 +135,10 @@ public class MenuToggle(
                 ? MenuToggleState.On
                 : MenuToggleState.Wait,
             MenuToggleState.Wait when isDown && allowOn => MenuToggleState.On,
-            MenuToggleState.Wait when !isDown && Mode == MenuToggleMode.Hold => MenuToggleState.Off,
+            // Releasing the button while still waiting to open cancels the pending open, for both
+            // Hold and Toggle modes. Previously only Hold was handled, so a Toggle-mode tap that was
+            // released before `allowOn` became true got stuck in Wait and the press was swallowed.
+            MenuToggleState.Wait when !isDown => MenuToggleState.Off,
             MenuToggleState.On when !isDown && Mode == MenuToggleMode.Hold => MenuToggleState.Off,
             MenuToggleState.On when !wasDown && isDown && Mode == MenuToggleMode.Toggle =>
                 MenuToggleState.Off,

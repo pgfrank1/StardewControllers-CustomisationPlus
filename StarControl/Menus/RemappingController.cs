@@ -87,14 +87,24 @@ internal class RemappingController(
                 }
                 continue;
             }
-            var controllerButton = button.TryGetController(out var cb) ? cb : default;
+            var isControllerButton = button.TryGetController(out var cb);
+            var controllerButton = isControllerButton ? cb : default;
             var wasButtonDown = downButtons.Contains(button);
             var wasPatched = InputPatches.ToolUseButton == controllerButton;
             if (wasButtonDown || wasPatched)
             {
+                // If the controller disconnects mid-press, SMAPI can freeze the button's state as
+                // Held/suppressed instead of transitioning to Released, which would leak the
+                // simulated tool button (InputPatches.ToolUseButton) and downButtons. Treat a
+                // disconnected controller as button-up so the existing release path below cleans up.
+                var controllerDisconnected =
+                    isControllerButton && !Game1.input.GetGamePadState().IsConnected;
                 var isButtonUp =
-                    !inputHelper.IsSuppressed(button)
-                    && buttonState is SButtonState.Released or SButtonState.None;
+                    controllerDisconnected
+                    || (
+                        !inputHelper.IsSuppressed(button)
+                        && buttonState is SButtonState.Released or SButtonState.None
+                    );
                 // We have to release the simulated tool button as soon as the remapped button
                 // is released, because some tools won't allow release until *after* they detect
                 // that the tool button is released.

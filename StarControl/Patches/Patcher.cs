@@ -41,7 +41,7 @@ internal static class Patcher
             typeof(Game1),
             "drawHUD",
             prefix: new(typeof(GamePatches), nameof(GamePatches.DrawHud_Prefix)),
-            postfix: new(typeof(GamePatches), nameof(GamePatches.DrawHud_Postfix))
+            finalizer: new(typeof(GamePatches), nameof(GamePatches.DrawHud_Finalizer))
         );
         TryPatch(
             harmony,

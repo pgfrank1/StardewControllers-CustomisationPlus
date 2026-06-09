@@ -50,6 +50,10 @@ internal class RadialMenuController(
     private const int MENU_ANIMATION_DURATION_MS = 120;
     private const int QUICK_SLOT_ANIMATION_DURATION_MS = 250;
 
+    // Fraction of a sector (past the halfway boundary) the cursor must cross before the focused
+    // item switches, so analog drift resting on a boundary doesn't flip-flop between two items.
+    private const float FOCUS_HYSTERESIS = 0.15f;
+
     private IRadialMenu? activeMenu;
     private float? cursorAngle;
     private PendingActivation? delayedItem;
@@ -377,6 +381,17 @@ internal class RadialMenuController(
         menuOpenTimeMs = 0;
         menuScale = 0;
         quickSlotOpacity = 0;
+        // Ensure the hidden-cursor state can't be stranded. Update()'s normal restore branch only
+        // runs while the controller is enabled; when we reset because the controller is being
+        // disabled (e.g. returning to title), that branch won't run again. In the normal in-Update
+        // reset path this is harmless — the forceHideCursor re-evaluation later in the same Update
+        // re-hides if a toggle is still partially active.
+        InputPatches.ForceHideCursor = false;
+        if (previousMouseVisible is not null)
+        {
+            Game1.game1.IsMouseVisible = previousMouseVisible.Value;
+            previousMouseVisible = null;
+        }
     }
 
     public void PrepareHudForMenu()
@@ -651,6 +666,25 @@ internal class RadialMenuController(
             var itemAngle = MathHelper.TwoPi / page.Items.Count;
             var nextFocusedIndex =
                 (int)MathF.Round(cursorAngle.Value / itemAngle) % page.Items.Count;
+            // Hysteresis: when an item is already focused, require the cursor to move past the
+            // sector boundary by FOCUS_HYSTERESIS before switching. Without this, a stick resting on
+            // a boundary (common with analog drift just past the dead zone) flips between two items
+            // every frame and re-triggers the focus sound.
+            if (
+                focusedIndex >= 0
+                && focusedIndex < page.Items.Count
+                && nextFocusedIndex != focusedIndex
+            )
+            {
+                var focusedCenter = focusedIndex * itemAngle;
+                var angleFromFocused = MathF.Abs(
+                    MathHelper.WrapAngle(cursorAngle.Value - focusedCenter)
+                );
+                if (angleFromFocused < itemAngle * (0.5f + FOCUS_HYSTERESIS))
+                {
+                    nextFocusedIndex = focusedIndex;
+                }
+            }
             if (nextFocusedIndex != focusedIndex || page.Items[nextFocusedIndex] != focusedItem)
             {
                 Logger.Log(
@@ -717,6 +751,8 @@ internal class RadialMenuController(
         var viewport = Game1.viewport;
         var cursorX = (int)(targetPos.X - viewport.X);
         var cursorY = (int)(targetPos.Y - viewport.Y);
-        Game1.setMousePosition(cursorX, cursorY);
+        // ui_scale: false — cursorX/Y are in world-render (zoomLevel) space, derived from
+        // Game1.viewport, so force the zoomLevel conversion regardless of the ambient uiMode.
+        Game1.setMousePosition(cursorX, cursorY, ui_scale: false);
     }
 }
