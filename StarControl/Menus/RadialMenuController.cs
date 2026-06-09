@@ -409,6 +409,13 @@ internal class RadialMenuController(
         }
         foreach (var toolbar in toolbars)
         {
+            // Clear any stale hover item before removing the toolbar from onScreenMenus. While it's
+            // removed, Toolbar.draw() (which normally nulls hoverItem every frame) never runs, and
+            // Toolbar.performHoverAction is gated off while the cursor is hidden (Game1 only calls it
+            // when wasMouseVisibleThisFrame is true). With both writers disabled a non-null hoverItem
+            // would freeze and leak to mods that read it directly — e.g. UI Info Suite 2's sell-price
+            // overlay, which then stays stuck on screen.
+            toolbar.hoverItem = null;
             Game1.onScreenMenus.Remove(toolbar);
         }
     }
@@ -422,6 +429,9 @@ internal class RadialMenuController(
         }
         if (hiddenToolbar is not null && Game1.onScreenMenus is not null)
         {
+            // Belt-and-suspenders: ensure no hover item survived the hidden period before the
+            // toolbar becomes live again, so the sell-price overlay can't reappear stale.
+            hiddenToolbar.hoverItem = null;
             if (!Game1.onScreenMenus.Contains(hiddenToolbar))
             {
                 Game1.onScreenMenus.Add(hiddenToolbar);
