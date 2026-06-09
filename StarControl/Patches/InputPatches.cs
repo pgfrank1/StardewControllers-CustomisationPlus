@@ -154,6 +154,14 @@ internal static class InputPatches
         lastMouseHScrollValue = mouseState.HorizontalScrollWheelValue;
     }
 
+    // IMPORTANT (SMAPI coupling): this postfix is registered on the *base*
+    // InputState.GetGamePadState, but Game1.input is SMAPI's sealed SInputState, whose
+    // GetGamePadState() override returns a cached value WITHOUT calling base — so this postfix never
+    // runs on the game's own Game1.input.GetGamePadState() calls. It only takes effect because
+    // SInputState.TrueUpdate() calls base.GetGamePadState() once per tick to seed its state builder,
+    // and that seeded value flows into the ControllerState the game ultimately reads. Works today,
+    // but if SMAPI ever stops seeding its builder from base.GetGamePadState(), right-stick
+    // suppression here silently stops working with no error. Re-verify on every SMAPI update.
     public static void GetGamePadState_Postfix(ref GamePadState __result)
     {
         var nowMs = Game1.currentGameTime?.TotalGameTime.TotalMilliseconds ?? 0;
@@ -222,11 +230,23 @@ internal static class InputPatches
     public static bool DrawMouseCursor_Prefix()
     {
         ClearAwaitIfMouseMoved();
-        // Only take over cursor drawing for world gameplay. When a menu is open (mail, shop,
-        // etc.) the menu draws its own cursor and uses Game1.mouseCursorTransparency; if we ran
-        // our hiding logic here it would corrupt that menu cursor (it could render faint or in
-        // the wrong layer). Defer entirely to vanilla while a menu is active.
-        if (Game1.activeClickableMenu is not null || !ShouldHideCursor())
+        // When a menu is open it draws its own cursor (IClickableMenu.drawMouse) using
+        // Game1.mouseCursorTransparency, so defer cursor drawing to it. But while hiding the cursor
+        // for gamepad/wheel play we drive mouseCursorTransparency to 0, and vanilla only restores it
+        // to 1 while NO menu is open (Game1.drawMouseCursor / Game1.updateCursorTileHint). Vanilla
+        // menus reset it themselves on open, but StardewUI-based menus (StarControl's own config and
+        // mod-registered pages) do not — so a menu opened straight from the Mod Menu wheel inherits
+        // the leaked 0 and its cursor draws fully transparent: invisible, though still interactable.
+        // Undo our hiding here so the menu's cursor is visible.
+        if (Game1.activeClickableMenu is not null)
+        {
+            if (ShouldHideCursor() && Game1.mouseCursorTransparency == 0f)
+            {
+                Game1.mouseCursorTransparency = 1f;
+            }
+            return true;
+        }
+        if (!ShouldHideCursor())
         {
             return true;
         }
@@ -338,6 +358,10 @@ internal static class InputPatches
         {
             return;
         }
+        // Depends on Stardew's MonoGame fork exposing the internal GamePadButtons._buttons bitmask
+        // field and a settable GamePadState.Buttons. This is not part of the public XNA/MonoGame API
+        // and no SMAPI/game contract guarantees it; a MonoGame layout change would break this at
+        // compile or runtime. Inherited from upstream Star Control.
         var downButtons = gamepadState.Buttons._buttons;
         var remapState = rawState ?? gamepadState;
         if (remapState.IsButtonDown(ToolUseButton.Value))
