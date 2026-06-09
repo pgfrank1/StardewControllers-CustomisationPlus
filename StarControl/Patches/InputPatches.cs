@@ -231,16 +231,19 @@ internal static class InputPatches
     {
         ClearAwaitIfMouseMoved();
         // When a menu is open it draws its own cursor (IClickableMenu.drawMouse) using
-        // Game1.mouseCursorTransparency, so defer cursor drawing to it. But while hiding the cursor
-        // for gamepad/wheel play we drive mouseCursorTransparency to 0, and vanilla only restores it
-        // to 1 while NO menu is open (Game1.drawMouseCursor / Game1.updateCursorTileHint). Vanilla
-        // menus reset it themselves on open, but StardewUI-based menus (StarControl's own config and
-        // mod-registered pages) do not — so a menu opened straight from the Mod Menu wheel inherits
-        // the leaked 0 and its cursor draws fully transparent: invisible, though still interactable.
-        // Undo our hiding here so the menu's cursor is visible.
+        // Game1.mouseCursorTransparency, so defer cursor drawing to it. But the cursor gets driven to
+        // 0 transparency for gamepad play — either by us while hiding for the wheel, or by vanilla's
+        // own gamepad branch in Game1.drawMouseCursor — and vanilla only restores it to 1 while NO
+        // menu is open (drawMouseCursor / updateCursorTileHint). Vanilla menus reset it in their
+        // constructor, but menus that don't (StardewUI pages opened from the Mod Menu wheel, and
+        // Lookup Anything, whose BaseMenu uses the parameterless IClickableMenu ctor) inherit the
+        // leaked 0 and draw their cursor fully transparent: invisible, though still interactable. An
+        // open interactive menu should never have an invisible cursor, so restore full opacity here.
+        // The == 0f guard leaves menus that manage their own transparency (every vanilla menu, which
+        // resets to 1 on open) untouched, so this only ever rescues a leaked-hidden cursor.
         if (Game1.activeClickableMenu is not null)
         {
-            if (ShouldHideCursor() && Game1.mouseCursorTransparency == 0f)
+            if (Game1.mouseCursorTransparency == 0f)
             {
                 Game1.mouseCursorTransparency = 1f;
             }
