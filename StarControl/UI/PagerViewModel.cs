@@ -27,6 +27,10 @@ internal partial class PagerViewModel<T> : INotifyPropertyChanged, INotifyProper
 
     public bool HandleButtonPress(SButton button)
     {
+        if (Pages.Count == 0)
+        {
+            return false;
+        }
         switch (button)
         {
             case SButton.LeftTrigger:

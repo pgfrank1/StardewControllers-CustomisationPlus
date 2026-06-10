@@ -61,7 +61,7 @@ internal class PageRegistry(ModConfig config)
 
     public void InvalidateAll()
     {
-        for (int i = trackedPageLists.Count - 1; i > 0; i--)
+        for (int i = trackedPageLists.Count - 1; i >= 0; i--)
         {
             if (trackedPageLists[i].TryGetTarget(out var pageList))
             {
@@ -141,7 +141,7 @@ internal class PageRegistry(ModConfig config)
 
     private void InvalidateIndex(int index)
     {
-        for (int i = trackedPageLists.Count - 1; i > 0; i--)
+        for (int i = trackedPageLists.Count - 1; i >= 0; i--)
         {
             if (trackedPageLists[i].TryGetTarget(out var pageList))
             {
