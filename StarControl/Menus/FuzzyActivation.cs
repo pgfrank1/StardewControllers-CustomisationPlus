@@ -62,7 +62,22 @@ internal static class FuzzyActivation
             );
             return ItemActivationResult.Delayed;
         }
-        who.CurrentToolIndex = who.Items.IndexOf(item);
+        int itemIndex = who.Items.IndexOf(item);
+        if (itemIndex < 0)
+        {
+            // The item can disappear from the inventory during its own activation — e.g. a
+            // book whose ItemUsed trigger runs a RemoveItem action from inside
+            // performUseAction. Selecting it would set CurrentToolIndex = -1, which crashes
+            // every later Items[CurrentToolIndex] read (vanilla only guards the upper bound),
+            // taking down the update and draw loops with it.
+            Logger.Log(
+                LogCategory.Activation,
+                $"ConsumeOrSelect({item.Name}) -> {ItemActivationResult.Ignored}, because the "
+                    + "item is no longer in the player's inventory."
+            );
+            return ItemActivationResult.Ignored;
+        }
+        who.CurrentToolIndex = itemIndex;
         Logger.Log(
             LogCategory.Activation,
             $"Set current tool index to {who.CurrentToolIndex} to match item selection."
